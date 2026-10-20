@@ -63,7 +63,7 @@ main{padding:14px 16px 24px;flex:1;overflow-y:auto}
 .ph h1{font-size:21px;font-weight:600;margin-top:6px;line-height:1.3}
 .pb{padding:18px 20px 20px}
 .pb p{font-size:16px;line-height:1.5;color:#2C2C2A;margin-bottom:14px}
-.sb{font-weight:600}
+.sb{font-weight:800;color:#000000}
 .btn{width:100%;background:#EF9F27;color:#412402;border:none;padding:14px;border-radius:14px;font-size:17px;font-weight:600;cursor:pointer}
 #end,#bad{background:#534AB7;color:#FFFFFF;flex-direction:column;text-align:center;display:none}
 #end .em{font-size:48px}
@@ -81,7 +81,7 @@ main{padding:14px 16px 24px;flex:1;overflow-y:auto}
 <body>
 <div id="app">
   <header>
-    <div class="top"><span class="logo">📈 Tradevice</span><span id="tm">⏱ 1:00</span></div>
+    <div class="top"><span class="logo">📈 Tradevice</span><span id="tm">⏱ 0:50</span></div>
     <p class="lbl">Demo balance</p>
     <p id="bal">€1,000.00</p>
   </header>
@@ -90,7 +90,7 @@ main{padding:14px 16px 24px;flex:1;overflow-y:auto}
       <div class="lvrow"><b id="lvl">Level 1</b><span id="pts">0 / 100 pts</span></div>
       <div class="track"><div id="bar"></div></div>
       <div class="badges">
-        <div class="bw"><div class="bdg" id="b1"><span>🚀</span></div><span class="bl" style="color:#0C447C">First trade</span></div>
+        <div class="bw"><div class="bdg" id="b1"><span>🚀</span></div><span class="bl" style="color:#0C447C">Starter</span></div>
         <div class="bw"><div class="bdg" id="b2"><span>🔥</span></div><span class="bl" style="color:#712B13">On fire</span></div>
         <div class="bw"><div class="bdg" id="b3"><span>🏆</span></div><span class="bl" style="color:#633806">Market pro</span></div>
       </div>
@@ -111,7 +111,7 @@ main{padding:14px 16px 24px;flex:1;overflow-y:auto}
     <p id="err"></p>
   </div>
 
-  <div id="pop" class="ov">
+  <div id="pop" class="ov" style="display:none">
     <div class="pc">
       <div class="ph"><div class="em">🎉</div><h1>Earn rewards with every trade!</h1></div>
       <div class="pb">
@@ -145,7 +145,7 @@ const P = new URLSearchParams(location.search);
 const GROUP = P.get("g");            // "c" = control, "t" = treatment
 const PID = P.get("pid") || "";       // Qualtrics ResponseID from Part 1
 const TEST = P.get("test") === "1";   // test=1 shortens the timer to 20 s
-const DURATION = TEST ? 15 : 60;
+const DURATION = TEST ? 15 : 50;
 
 const ASSETS = [
   ["Northwind Energy", 42.10, "+1.2%"],
@@ -153,7 +153,7 @@ const ASSETS = [
   ["Arbor Foods", 23.90, "+2.1%"],
   ["Global World ETF", 76.30, "+0.3%"]
 ];
-const BADGE_MSG = {1: "🚀 First trade badge!", 2: "🔥 On fire badge!", 3: "🏆 Market pro badge!"};
+const BADGE_MSG = {2: "🚀 Starter badge!", 4: "🔥 On fire badge!", 6: "🏆 Market pro badge!"};
 const COLORS = ["#D4537E", "#EF9F27", "#534AB7", "#1D9E75", "#378ADD"];
 
 const $ = id => document.getElementById(id);
@@ -162,6 +162,7 @@ const eur = v => "€" + v.toLocaleString("en-US", {minimumFractionDigits: 2, ma
 const fmt = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 
 let balance = 1000, holdings = {}, points = 0, trades = 0;
+let popupShown = false, paused = false;
 let left = DURATION, timer = null, popupStart = 0, popupSeconds = null, current = null, amount = 50, finished = false;
 
 function renderList() {
@@ -202,6 +203,13 @@ function toast(text) {
 function openSheet(i) {
   if (finished) return;
   current = i;
+  if (!popupShown) {               // first tap on an asset: show the message before trading
+    popupShown = true;
+    paused = true;                 // timer paused while the message is open
+    popupStart = performance.now();
+    $("pop").style.display = "flex";
+    return;
+  }
   $("shn").textContent = ASSETS[i][0];
   $("shp").textContent = "Price " + eur(ASSETS[i][1]);
   $("sho").textContent = holdings[i] ? "You own " + eur(holdings[i]) : "";
@@ -228,7 +236,7 @@ function trade(isBuy) {
   closeSheet();
   $("rem").style.display = "none";
   let msg = "+20 pts", big = false;
-  [1, 2, 3].forEach(k => { if (trades === k) { $("b" + k).classList.add("on"); msg = BADGE_MSG[k]; big = true; } });
+  [2, 4, 6].forEach((k, j) => { if (trades === k) { $("b" + (j + 1)).classList.add("on"); msg = BADGE_MSG[k]; big = true; } });
   if (Math.floor(points / 100) > oldLevel) { msg = "⭐ Level up!"; big = true; }
   toast(msg);
   confetti(big ? 45 : 14);
@@ -236,6 +244,7 @@ function trade(isBuy) {
 }
 
 function tick() {
+  if (paused) return;
   left--;
   $("tm").textContent = "⏱ " + fmt(Math.max(left, 0));
   if (left === 20 && trades === 0) $("rem").style.display = "block";
@@ -269,7 +278,8 @@ $("x").onclick = closeSheet;
 $("go").onclick = () => {
   popupSeconds = Math.round((performance.now() - popupStart) / 100) / 10;
   $("pop").style.display = "none";
-  timer = setInterval(tick, 1000);
+  paused = false;
+  openSheet(current);              // continue straight to the trade they tapped
 };
 $("cont").onclick = returnToSurvey;
 
@@ -280,7 +290,7 @@ if (GROUP !== "c" && GROUP !== "t") {
   if (GROUP === "c") $("disc").remove();
   $("tm").textContent = "⏱ " + fmt(DURATION);
   update();
-  popupStart = performance.now();
+  timer = setInterval(tick, 1000);
 }
 </script>
 </body>
